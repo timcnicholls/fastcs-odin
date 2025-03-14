@@ -1,8 +1,11 @@
 import json
 import logging
+import time
+from collections import deque
 from collections.abc import Callable, Iterable, Iterator, Mapping
 from dataclasses import dataclass, field
 from enum import Enum
+from statistics import mean, stdev
 from typing import Any, Literal, TypeVar
 
 from fastcs.controller import BaseController, SubController
@@ -14,11 +17,25 @@ def is_metadata_object(v: Any) -> bool:
     return isinstance(v, dict) and "writeable" in v and "type" in v
 
 
+class OdinConnectionType(str, Enum):
+    HTTP = "http"
+    IPC = "ipc"
+
+
+@dataclass
+class OdinConnectionSettings:
+    connection: OdinConnectionType = OdinConnectionType.HTTP
+    ip: str = "127.0.0.1"
+    port: int = 25565
+    endpoint: str = "tcp://127.0.0.1:5000"
+
+
 class AdapterType(str, Enum):
     FRAME_PROCESSOR = "FrameProcessorAdapter"
     FRAME_RECEIVER = "FrameReceiverAdapter"
     META_WRITER = "MetaListenerAdapter"
     EIGER_FAN = "EigerFanAdapter"
+    GENERIC = "__generic__"
 
 
 class OdinParameterMetadata(BaseModel):
@@ -235,3 +252,32 @@ def unpack_status_arrays(parameters: list[OdinParameter], uris: list[list[str]])
         parameters.remove(value)
 
     return parameters
+
+
+class OdinRequestTimer:
+    def __init__(
+        self, name: str, num_samples: int = 100, log_level: int = logging.DEBUG
+    ):
+        self._name = name
+        self._num_samples = num_samples
+        self._samples = deque(maxlen=num_samples)
+        self._count = 0
+        self._logger = logging.getLogger("odin_request_timer")
+        self._logger.setLevel(log_level)
+
+    def __enter__(self):
+        self._start = time.time()
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        delta = (time.time() - self._start) * 1000
+        self.add_sample(delta)
+
+    def add_sample(self, sample):
+        self._samples.append(sample)
+        self._count += 1
+
+        if self._count % (self._num_samples / 2) == 0:
+            self._logger.debug(
+                f"RequestTimer {self._name}: "
+                f"<{mean(self._samples):.3f} +/- {stdev(self._samples):.3f} ms>"
+            )
