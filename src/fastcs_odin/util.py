@@ -14,7 +14,7 @@ from pydantic import BaseModel, ConfigDict, ValidationError
 
 
 def is_metadata_object(v: Any) -> bool:
-    return isinstance(v, dict) and "writeable" in v and "type" in v
+    return isinstance(v, dict) and "writeable" in v and "type" in v and "value" in v
 
 
 class OdinConnectionType(str, Enum):
@@ -44,6 +44,10 @@ class OdinParameterMetadata(BaseModel):
     writeable: bool
     type: Literal["float", "int", "bool", "str"]
     allowed_values: dict[int, str] | None = None
+    name: str | None = None
+    description: str | None = None
+    units: str | None = None
+    display_precision: int | None = None
 
     @property
     def fastcs_datatype(self) -> DataType:
@@ -128,17 +132,26 @@ def _walk_odin_metadata(
         else:
             # Leaves
             try:
+                # If the parameter has metadata, use it to resolve the parameter
                 if isinstance(node_value, dict) and is_metadata_object(node_value):
-                    yield (node_path, OdinParameterMetadata.model_validate(node_value))
+                    if isinstance(node_value["value"], list):
+                        # If the parameter is a list, expand it to separate parameters
+                        yield from expand_list_parameter(node_value["value"], node_path)
+                    elif isinstance(node_value["value"], dict):
+                        # If the parameter is a dict, expand it to separate parameters
+                        yield from expand_dict_parameter(node_value["value"], node_path)
+                    else:
+                        # Otherwise validate the parameter and yield it
+                        yield (
+                            node_path,
+                            OdinParameterMetadata.model_validate(node_value),
+                        )
                 elif isinstance(node_value, list):
+                    # If the parameter is a list, expand it to separate parameters
                     if "config" in node_path:
-                        # Split list into separate parameters so they can be set
-                        for idx, sub_node_value in enumerate(node_value):
-                            sub_node_path = node_path + [str(idx)]
-                            yield (
-                                sub_node_path,
-                                infer_metadata(sub_node_value, sub_node_path),
-                            )
+                        # TODO - treating odin data config lists as a special case is
+                        #  likely unnecessary
+                        yield from expand_list_parameter(node_value, node_path)
                     else:
                         # Convert read-only list to a string for display
                         yield (node_path, infer_metadata(str(node_value), node_path))
@@ -148,6 +161,44 @@ def _walk_odin_metadata(
                     yield (node_path, infer_metadata(node_value, node_path))
             except ValidationError as e:
                 logging.warning(f"Type not supported:\n{e}")
+
+
+def expand_list_parameter(
+    values: list[Any], path: list[str]
+) -> Iterator[tuple[list[str], OdinParameterMetadata]]:
+    """Expand a list parameter into separately indexed parameters.
+
+    Args:
+        values: list of values to expand
+        path: list of path elements to this parameter in tree
+    """
+    for idx, sub_node_value in enumerate(values):
+        # Append list index to parameter path
+        sub_node_path = path + [str(idx)]
+        # Yield expanded list parameter
+        yield (
+            sub_node_path,
+            infer_metadata(sub_node_value, sub_node_path),
+        )
+
+
+def expand_dict_parameter(
+    values: dict[str, Any], path: list[str]
+) -> Iterator[tuple[list[str], OdinParameterMetadata]]:
+    """Expand a dict parameter into separate parameters.
+
+    Args:
+        values: dict of values to expand
+        path: list of path elements to this parameter in tree
+    """
+    for key, sub_node_value in values.items():
+        # Append dict item key to parameter path
+        sub_node_path = path + [key]
+        # Yield expanded dict parameter
+        yield (
+            sub_node_path,
+            infer_metadata(sub_node_value, sub_node_path),
+        )
 
 
 def infer_metadata(parameter: Any, uri: list[str]):

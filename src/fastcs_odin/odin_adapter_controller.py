@@ -40,9 +40,12 @@ class ParamTreeCache:
         self._tree = tree
         self._last_update = datetime.now()
 
-    def _resolve_value(self, path_elems: list[str], tree: dict[str, Any]) -> Any:
+    def _resolve_value(self, path_elems: list[str], tree) -> Any:
         if len(path_elems) == 1:
-            return tree[path_elems[0]]
+            if isinstance(tree, list):
+                return tree[int(path_elems[0])]
+            else:
+                return tree[path_elems[0]]
 
         return self._resolve_value(path_elems[1:], tree[path_elems[0]])
 
@@ -73,23 +76,21 @@ class ParamTreeCache:
                 await self._update_event.wait()
 
         path_elems = path.split("/")
-        value = self._resolve_value(path_elems, self._tree)
+        value = self._resolve_value(path_elems[1:], self._tree)
         return value
 
     async def put(self, path: str, value: Any) -> None:
-        uri = f"{self.path_prefix}/{path}"
-
         try:
-            response = await self.connection.put(uri, value)
+            response = await self.connection.put(path, value)
             match response:
                 case {"error": error}:
                     raise AdapterResponseError(error)
                 case _:
                     path_elems = path.split("/")
                     new_value = response.get(path_elems[-1])  # type: ignore
-                    self._update_value(path_elems, new_value, self._tree)
+                    self._update_value(path_elems[1:], new_value, self._tree)
         except Exception as e:
-            logging.error("Put %s = %s failed:\n%s", uri, value, e)
+            logging.error("Put %s = %s failed:\n%s", path, value, e)
 
 
 @dataclass
