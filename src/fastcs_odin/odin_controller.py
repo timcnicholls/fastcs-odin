@@ -1,3 +1,4 @@
+from fastcs.connections.ip_connection import IPConnectionSettings
 from fastcs.controller import Controller
 from fastcs.datatypes import Bool, Float, Int, String
 
@@ -5,16 +6,9 @@ from fastcs_odin.eiger_fan import EigerFanAdapterController
 from fastcs_odin.frame_processor import FrameProcessorAdapterController
 from fastcs_odin.frame_receiver import FrameReceiverAdapterController
 from fastcs_odin.http_connection import HTTPConnection
-from fastcs_odin.ipc_connection import IPCConnection
 from fastcs_odin.meta_writer import MetaWriterAdapterController
 from fastcs_odin.odin_adapter_controller import OdinAdapterController
-from fastcs_odin.util import (
-    AdapterType,
-    OdinConnectionSettings,
-    OdinConnectionType,
-    OdinParameter,
-    create_odin_parameters,
-)
+from fastcs_odin.util import AdapterType, OdinParameter, create_odin_parameters
 
 types = {"float": Float(), "int": Int(), "bool": Bool(), "str": String()}
 
@@ -25,14 +19,10 @@ class AdapterResponseError(Exception): ...
 class OdinController(Controller):
     """A root ``Controller`` for an odin control server."""
 
-    def __init__(self, settings: OdinConnectionSettings) -> None:
+    def __init__(self, settings: IPConnectionSettings) -> None:
         super().__init__()
 
-        match settings.connection:
-            case OdinConnectionType.HTTP:
-                self.connection = HTTPConnection(settings.ip, settings.port)
-            case OdinConnectionType.IPC:
-                self.connection = IPCConnection(settings.endpoint)
+        self.connection = HTTPConnection(settings.ip, settings.port)
 
     async def initialise(self) -> None:
         self.connection.open()
@@ -69,7 +59,7 @@ class OdinController(Controller):
 
     def _create_adapter_controller(
         self,
-        connection: HTTPConnection | IPCConnection,
+        connection: HTTPConnection,
         parameters: list[OdinParameter],
         adapter: str,
         module: str,

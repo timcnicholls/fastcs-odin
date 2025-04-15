@@ -11,7 +11,6 @@ from fastcs.controller import BaseController, SubController
 from fastcs.util import snake_to_pascal
 
 from fastcs_odin.http_connection import HTTPConnection
-from fastcs_odin.ipc_connection import IPCConnection
 from fastcs_odin.util import OdinParameter, OdinRequestTimer
 
 
@@ -21,7 +20,7 @@ class AdapterResponseError(Exception): ...
 @dataclass
 class ParamTreeCache:
     path_prefix: str
-    connection: HTTPConnection | IPCConnection
+    connection: HTTPConnection
     _last_update: datetime | None = None
     _tree: dict[str, Any] = field(default_factory=dict)
     _update_event: asyncio.Event = field(default_factory=asyncio.Event)
@@ -217,7 +216,7 @@ class OdinAdapterController(SubController):
 
     def __init__(
         self,
-        connection: HTTPConnection | IPCConnection,
+        connection: HTTPConnection,
         parameters: list[OdinParameter],
         api_prefix: str,
     ):

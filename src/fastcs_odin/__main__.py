@@ -2,6 +2,7 @@ from pathlib import Path
 from typing import Optional
 
 import typer
+from fastcs.connections.ip_connection import IPConnectionSettings
 from fastcs.launch import FastCS
 from fastcs.transport.epics.options import (
     EpicsGUIOptions,
@@ -10,7 +11,6 @@ from fastcs.transport.epics.options import (
 )
 
 from fastcs_odin.odin_controller import OdinController
-from fastcs_odin.util import OdinConnectionSettings, OdinConnectionType
 
 from . import __version__
 
@@ -41,24 +41,13 @@ def main(
     pass
 
 
-OdinConnection = typer.Option(
-    OdinConnectionType.HTTP, help="Connection type of odin server"
-)
 OdinIp = typer.Option("127.0.0.1", help="IP address of odin server")
 OdinPort = typer.Option(8888, help="Port of odin server")
-OdinEndpoint = typer.Option("tcp://127.0.0.1:5000", help="IPC endpoint of odin server")
 
 
 @app.command()
-def ioc(
-    pv_prefix: str = typer.Argument(),
-    connection: OdinConnectionType = OdinConnection,
-    ip: str = OdinIp,
-    port: int = OdinPort,
-    endpoint: str = OdinEndpoint,
-):
-    # controller = OdinController(IPConnectionSettings(ip, port))
-    controller = OdinController(OdinConnectionSettings(connection, ip, port, endpoint))
+def ioc(pv_prefix: str = typer.Argument(), ip: str = OdinIp, port: int = OdinPort):
+    controller = OdinController(IPConnectionSettings(ip, port))
     options = EpicsOptions(
         ioc=EpicsIOCOptions(pv_prefix=pv_prefix),
         gui=EpicsGUIOptions(

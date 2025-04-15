@@ -17,19 +17,6 @@ def is_metadata_object(v: Any) -> bool:
     return isinstance(v, dict) and "writeable" in v and "type" in v and "value" in v
 
 
-class OdinConnectionType(str, Enum):
-    HTTP = "http"
-    IPC = "ipc"
-
-
-@dataclass
-class OdinConnectionSettings:
-    connection: OdinConnectionType = OdinConnectionType.HTTP
-    ip: str = "127.0.0.1"
-    port: int = 25565
-    endpoint: str = "tcp://127.0.0.1:5000"
-
-
 class AdapterType(str, Enum):
     FRAME_PROCESSOR = "FrameProcessorAdapter"
     FRAME_RECEIVER = "FrameReceiverAdapter"
